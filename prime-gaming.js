@@ -1,6 +1,6 @@
 import { firefox } from 'playwright-firefox'; // stealth plugin needs no outdated playwright-extra
 import { authenticator } from 'otplib';
-import { resolve, jsonDb, datetime, stealth, filenamify, prompt, notify, html_game_list, handleSIGINT } from './util.js';
+import { resolve, jsonDb, datetime, stealth, filenamify, prompt, confirm, notify, html_game_list, handleSIGINT } from './util.js';
 import { cfg } from './config.js';
 
 const screenshot = (...a) => resolve(cfg.dir.screenshots, 'prime-gaming', ...a);
@@ -111,6 +111,7 @@ try {
     const title = await (await card.$('.item-card-details__body__primary')).innerText();
     console.log('Current free game:', title);
     if (cfg.dryrun) continue;
+    if (cfg.interactive && !await confirm()) continue;
     await (await card.$('button:has-text("Claim")')).click();
     db.data[user][title] ||= { title, time: datetime(), store: 'internal' };
     notify_games.push({ title, status: 'claimed', url: URL_CLAIM });
@@ -125,14 +126,15 @@ try {
     const title = await card.locator('.item-card-details__body__primary').innerText();
     const slug = await card.locator('a:has-text("Claim")').first().getAttribute('href');
     const url = 'https://gaming.amazon.com' + slug.split('?')[0];
-    console.log('Current free game:', title); //, url);
     // await (await card.$('text=Claim')).click(); // goes to URL of game, no need to wait
     external_info.push({title, url});
   }
   for (const {title, url} of external_info) {
+    console.log('Current free game:', title); //, url);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     if (cfg.debug) await page.pause();
     if (cfg.dryrun) continue;
+    if (cfg.interactive && !await confirm()) continue;
     await Promise.any([page.click('button:has-text("Get game")'), page.click('button:has-text("Claim now")'), page.click('button:has-text("Complete Claim")'), page.waitForSelector('div:has-text("Link game account")')]); // waits for navigation
 
     // TODO would be simpler than the below, but will block for linked stores without code
@@ -244,7 +246,7 @@ try {
                 await page2.click('#nextButton');
                 redeem_action = 'redeemed?';
                 console.log('  Redeemed successfully? Please report your Response from above (if it is new) in https://github.com/vogler/free-games-claimer/issues/5');
-                // db.data[user][title].status = 'claimed and redeemed';
+                db.data[user][title].status = 'claimed and redeemed?';
               }
             }
           } else if (store == 'legacy games') {
@@ -253,9 +255,17 @@ try {
             await page2.fill('[name=email_validate]', cfg.pg_email);
             await page2.uncheck('[name=newsletter_sub]');
             await page2.click('[type="submit"]');
-            redeem_action = 'redeemed?';
-            console.log('  Redeemed successfully? Please report problems in https://github.com/vogler/free-games-claimer/issues/5');
-            db.data[user][title].status = 'claimed and redeemed';
+            try {
+              await page2.waitForResponse(r => r.url().startsWith('https://promo.legacygames.com/promotion-processing/order-management.php'));
+              await page2.waitForSelector('h2:has-text("Thanks for redeeming")');
+              redeem_action = 'redeemed';
+              db.data[user][title].status = 'claimed and redeemed';
+            } catch (error) {
+              console.error('  Got error', error);
+              redeem_action = 'redeemed?';
+              db.data[user][title].status = 'claimed and redeemed?';
+              console.log('  Redeemed successfully? Please report problems in https://github.com/vogler/free-games-claimer/issues/5');
+            }
           } else {
             console.error(`  Redeem on ${store} not yet implemented!`);
           }
@@ -324,6 +334,7 @@ try {
       console.log('Current DLC:', title);
       if (cfg.debug) await page.pause();
       if (cfg.dryrun) continue;
+      if (cfg.interactive && !await confirm()) continue;
       db.data[user][title] ||= { title, time: datetime(), store: 'DLC', status: 'failed: need account linking' };
       const notify_game = { title, url };
       notify_games.push(notify_game); // status is updated below
