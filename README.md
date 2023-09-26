@@ -87,6 +87,10 @@ Available options/variables and their default values:
 | GOG_EMAIL     	|         	| GOG email for login. Overrides EMAIL.                                  	|
 | GOG_PASSWORD  	|         	| GOG password for login. Overrides PASSWORD.                            	|
 | GOG_NEWSLETTER	| 0       	| Do not unsubscribe from newsletter after claiming a game if 1.         	|
+| STEAM_USERNAME  |         	| Steam username for login. Overrides EMAIL.                             	|
+| STEAM_PASSWORD  |         	| Steam password for login. Overrides PASSWORD.                          	|
+| STEAM_JSON      | [steam-games.json](https://raw.githubusercontent.com/vogler/free-games-claimer/main/steam-games.json) | A list of steam urls in json format to claim the games. |
+
 
 See `config.js` for all options.
 
